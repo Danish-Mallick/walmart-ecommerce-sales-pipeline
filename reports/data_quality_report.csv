@@ -1,0 +1,8 @@
+column,dtype,missing_values,missing_percent,unique_values
+Store_ID,int64,0,0.0,2
+Month,int64,0,0.0,12
+Dept,int64,0,0.0,62
+IsHoliday,int64,0,0.0,2
+Weekly_Sales,float64,0,0.0,10898
+CPI,float64,0,0.0,280
+Unemployment,float64,0,0.0,23
