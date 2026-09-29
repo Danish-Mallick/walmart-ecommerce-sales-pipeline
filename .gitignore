@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+notebooks/*_source.ipynb
+.DS_Store
+
+# Notebook execution noise
+*.log
+
+# Keep the source inputs and small, reproducible outputs in Git.
+# Ignore only ad-hoc analyst exports.
+data/processed/*.tmp
+reports/*.tmp
