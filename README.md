@@ -246,23 +246,6 @@ To rerun the pipeline with another threshold:
 python scripts/run_pipeline.py --min-weekly-sales 15000
 ```
 
-## Data lineage
-
-In the DataCamp workspace, the source query is:
-
-```sql
-SELECT *
-FROM grocery_sales;
-```
-
-The complete DataCamp result is not stored here. The exported notebook retained a **20,000-row display sample**, saved as `grocery_sales_sample.csv` so the project remains reproducible without database credentials.
-
-The Parquet enrichment source contains holiday, economic and store attributes. The current curated contract publishes:
-
-`Store_ID`, `Month`, `Dept`, `IsHoliday`, `Weekly_Sales`, `CPI` and `Unemployment`.
-
-Replacing the local sample with the complete SQL export does not require rewriting the ETL logic.
-
 ## Engineering decisions
 
 **Why validate join cardinality?**  
@@ -288,15 +271,3 @@ The next step would be to move from a batch portfolio workflow toward a real pla
 5. persist pipeline-run metadata and quality results;
 6. orchestrate with Azure Data Factory, Fabric Data Factory or Airflow;
 7. add idempotent incremental loads and a lakehouse / warehouse serving layer.
-
-## Skills demonstrated
-
-**Data engineering:** ETL design · source contracts · schema validation · join cardinality · data quality · analytical marts · data lineage · CI/CD · reproducibility
-
-**Analytics:** dimensional aggregation · department contribution · holiday comparison · seasonality analysis · Seaborn visualization
-
-**Technology:** Python · pandas · PostgreSQL · Parquet · Pytest · GitHub Actions · Jupyter · Seaborn · Matplotlib
-
-## Attribution
-
-The starting exercise and supplied retail data come from DataCamp. The modular pipeline, quality checks, analytical marts, tests, CI workflow, documentation and analytical layer were developed for this portfolio repository.
