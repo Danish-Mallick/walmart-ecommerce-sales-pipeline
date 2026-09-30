@@ -4,15 +4,15 @@
 
 ![Engineering and analytics overview](reports/engineering_analytics_overview.svg)
 
-**Python · pandas · SQL · Parquet · Pytest · GitHub Actions · Seaborn**
+I built this project around a simple requirement: take weekly retail sales data from two different sources, turn it into a reliable analytical dataset, and make sure the same process can be rerun without depending on a notebook.
 
-I started this as a DataCamp transformation exercise, then rebuilt it as a small **data-engineering project with a downstream analytics layer**.
+The interesting part for me was not the final CSV. It was everything that had to be true before I trusted it: the join keys had to behave as expected, missing values had to be handled consistently, the output schema had to stay stable, and the pipeline had to fail when those assumptions were broken.
 
-The first goal was not to make charts. It was to create a pipeline I could trust: validate the input structure, prevent bad joins, apply deterministic transformations, enforce a curated schema, write repeatable outputs, and rerun everything in CI. Once that layer was stable, I used the curated data to build analytical marts and answer a second set of questions about seasonality, department contribution and holiday behaviour.
+Once that layer was in place, I used the curated output to build a few small analytical marts and answer questions about seasonality, department contribution and holiday behaviour.
 
-The repository uses a **20,000-row local sample** preserved from the DataCamp SQL output. The results below describe that sample after the assignment's default `Weekly_Sales > 10,000` filter; they are not presented as full Walmart enterprise results.
+The repository uses a **20,000-row local sample**, so the results below describe that sample rather than a complete Walmart production dataset.
 
-## Architecture
+## Pipeline
 
 ```mermaid
 flowchart LR
@@ -29,98 +29,102 @@ flowchart LR
     CI[GitHub Actions] -. tests + smoke run .-> Q
 ```
 
-The notebook is a presentation layer. The ETL logic lives in [`src/pipeline.py`](src/pipeline.py), while downstream analytical transformations live in [`src/analytics.py`](src/analytics.py). This separation keeps the raw-to-curated pipeline independent from the questions asked later.
+The raw-to-curated logic lives in [`src/pipeline.py`](src/pipeline.py). The analytical transformations live separately in [`src/analytics.py`](src/analytics.py).
 
-[Detailed architecture](docs/architecture.md) · [Data contract and quality rules](docs/data_contract.md)
+I kept that split deliberately. The charts should consume trusted data products; they should not contain a second, hidden version of the cleaning logic.
+
+[Architecture notes](docs/architecture.md) · [Data contract](docs/data_contract.md)
 
 ---
 
-## 1. Building the trusted data layer
+## Building the trusted layer
 
-### Extract and join validation
+### I validate the join before I trust the result
 
-The sales extract and the Parquet enrichment file are joined on `index`. Both inputs must have unique keys.
+The sales extract and the enrichment dataset are joined on `index`.
 
-I use a **one-to-one merge contract** rather than an unchecked merge. If either side contains duplicate join keys, the pipeline fails instead of silently multiplying rows and overstating sales.
+I use a **one-to-one merge contract** instead of a normal unchecked merge. If either source contains duplicate keys, the pipeline stops. I would rather fail loudly than discover later that a many-to-many join quietly multiplied sales rows.
 
-### Transformation
+### The transformation is deterministic
 
-The pipeline then:
+The pipeline:
 
-- checks required source columns;
-- fills numeric gaps with deterministic median values;
+- checks that required source columns exist;
+- fills numeric gaps with column medians;
 - parses dates and removes invalid timestamps;
 - derives calendar month;
-- applies a configurable weekly-sales threshold;
-- publishes an explicit seven-column curated schema.
+- applies a configurable `Weekly_Sales` threshold;
+- publishes a fixed seven-column curated schema.
 
-The default threshold is **10,000**, matching the original assignment, but it can be changed from the command line without editing source code.
+The default threshold is **10,000** because that is the rule used for this analysis. It can be changed from the command line without changing the transformation code.
 
-### Quality gates
+### I treat the output schema as a contract
 
-Before data is published, the curated dataframe must:
+Before anything is written, the curated dataframe must:
 
-- match the expected schema exactly;
+- match the expected columns;
 - contain no missing values;
 - contain valid calendar months;
 - contain no rows below the configured threshold.
 
-These checks turn data-quality problems into visible pipeline failures.
+If one of those conditions fails, the pipeline fails with it.
 
-### Data products
+### The pipeline publishes data products, not just one dataframe
 
-| Product | Grain | Purpose |
+| Output | Grain | Used for |
 |---|---|---|
-| [`clean_data.csv`](data/processed/clean_data.csv) | store / department / observation | trusted curated input |
-| [`agg_data.csv`](data/processed/agg_data.csv) | calendar month | monthly assignment output |
-| [`month_department_sales.csv`](data/marts/month_department_sales.csv) | department × month | seasonal analytics mart |
-| [`department_holiday_sales.csv`](data/marts/department_holiday_sales.csv) | department | holiday comparison mart |
-| [`department_sales_summary.csv`](data/marts/department_sales_summary.csv) | department | contribution / concentration mart |
+| [`clean_data.csv`](data/processed/clean_data.csv) | store / department / observation | trusted analytical source |
+| [`agg_data.csv`](data/processed/agg_data.csv) | calendar month | monthly summary |
+| [`month_department_sales.csv`](data/marts/month_department_sales.csv) | department × month | seasonality |
+| [`department_holiday_sales.csv`](data/marts/department_holiday_sales.csv) | department | holiday comparison |
+| [`department_sales_summary.csv`](data/marts/department_sales_summary.csv) | department | contribution and concentration |
 
-The marts are built **from the curated output**, not from the raw files. That is intentional: downstream analysis should consume a trusted data product rather than recreate cleaning logic independently.
+The marts are built from the curated layer, not from the raw files.
 
 ---
 
-# What I did after the pipeline was built
+# What I found after the pipeline was built
 
-Once the engineering layer was stable, I treated the curated dataset like a small analytical source and asked a series of business questions.
-
-## 2. When are qualifying weekly sales strongest?
+## When are qualifying weekly sales strongest?
 
 ![Monthly qualifying sales](reports/monthly_sales_story.svg)
 
-Most months in the sample sit around a **$39k–$42k** average for qualifying weekly sales. The strongest values appear near the end of the year:
+Most months sit around a **$39k–$42k** average for qualifying weekly sales. The strongest values appear near the end of the year:
 
-- **November:** $43,455 average qualifying weekly sales
-- **December:** $44,837, the highest monthly average in the sample
+- **November:** $43,455
+- **December:** $44,837
 - **October:** $39,286
 
-The result is descriptive and uses only rows that survive the `> 10,000` filter. I therefore interpret it as a pattern within the curated sample, not as a complete monthly Walmart sales trend.
+December is the highest monthly average in this sample.
 
-## 3. Which departments contribute the most qualifying sales?
+Because the analysis is restricted to rows above the configured threshold, I treat this as a pattern in the curated dataset rather than a complete Walmart sales trend.
+
+## Which departments contribute the most?
 
 ![Top departments](reports/top_departments.svg)
 
-Department-level analysis shows that the sales distribution is not even.
+The department distribution is quite concentrated.
 
-**Departments 92 and 95 are the two largest contributors in this sample.** Department 92 records approximately **$41.6M** in qualifying sales and Department 95 approximately **$36.8M**.
+**Department 92** contributes about **$41.6M** in qualifying sales and **Department 95** about **$36.8M**.
 
-Looking beyond the top two, the **top 10 departments account for 52.9%** of qualifying sales. That concentration is useful because it shows that aggregate monthly movement can be influenced heavily by a relatively small set of departments.
+The **top 10 departments account for 52.9%** of all qualifying sales in the sample.
 
-## 4. How concentrated is the department mix?
+That matters because an overall monthly trend can be driven by a relatively small part of the department mix.
+
+## How concentrated is the department mix?
 
 ![Department sales concentration](reports/department_sales_concentration.svg)
 
-The concentration view adds another perspective:
+The concentration becomes clearer when I look at cumulative contribution:
 
-- the **top 5 departments contribute 32.8%** of qualifying sales;
-- the **top 10 contribute 52.9%**.
+- top 5 departments: **32.8%**
+- top 10 departments: **52.9%**
 
-That made me cautious about treating the monthly trend as if every department moved in the same way. A stronger next question was whether different departments behaved differently around holiday periods.
+That made the next question more useful than another company-level chart: do those departments behave the same way during holiday periods?
 
-## 5. Is the overall holiday difference spread evenly across departments?
+## Does the holiday pattern look the same across departments?
 
-The sample-level comparison shows:
+At sample level:
 
 | Period | Average qualifying weekly sales |
 |---|---:|
@@ -128,60 +132,57 @@ The sample-level comparison shows:
 | Holiday week | $42,929 |
 | Difference | **+5.5%** |
 
-That does **not** mean holidays caused a 5.5% increase. The dataset is filtered, the holiday flag is observational, and departments differ in their mix.
+I do not interpret that as a causal holiday effect. The data is observational, the sample is filtered, and department mix matters.
 
-So I looked one level deeper.
+So I compared holiday and regular-week averages by department.
 
 ![Holiday uplift by department](reports/holiday_uplift_by_department.svg)
 
-Among departments with at least five holiday observations and twenty regular observations, the pattern varies substantially.
+Among departments with enough observations for a more stable comparison:
 
-**Department 72 shows the largest positive difference at +90.9%, while Department 16 is 49.6% lower during holiday weeks.**
+- **Department 72:** +90.9%
+- **Department 55:** +69.8%
+- **Department 5:** +59.5%
+- **Department 16:** -49.6%
 
-The important finding is not the extreme percentages by themselves. It is that the overall +5.5% average hides very different departmental behaviour.
+The useful result is not that one department has a very large percentage. It is that the overall **+5.5%** average hides very different departmental patterns.
 
-## 6. Where do department-level seasonal patterns appear?
+## Where do those seasonal differences appear?
 
 ![Department month heatmap](reports/department_month_heatmap.svg)
 
-I then built a department × month mart and visualized the twelve highest-sales departments as a heatmap.
+The heatmap uses the twelve highest-sales departments and compares their average qualifying weekly sales by month.
 
-The result confirms that **seasonality is not uniform across departments**. Some high-value departments strengthen late in the year, while others peak at different points.
-
-That means a single monthly company-level trend is useful for orientation, but it is not sufficient for explaining *which parts of the business* are producing the change.
+The main takeaway is that **seasonality is not uniform**. Different high-value departments peak at different points, so the overall monthly line hides some of the mix underneath it.
 
 ---
 
 ## CI and reproducibility
 
-GitHub Actions runs two independent jobs:
+GitHub Actions runs two jobs.
 
-### Unit and integration tests
+The first runs the unit and integration tests, including:
 
-The test suite checks:
-
-- one-to-one joins;
 - duplicate-key rejection;
-- schema enforcement;
+- one-to-one join behaviour;
+- schema validation;
 - numeric imputation;
 - invalid-date handling;
-- configurable sales thresholds;
+- configurable filtering;
 - output writing;
 - end-to-end pipeline execution;
-- analytics-mart grain and calculations.
+- analytical-mart calculations.
 
-### Pipeline smoke test
+The second runs the pipeline itself:
 
-The second job:
+1. rebuild the curated outputs;
+2. build the analytical marts;
+3. regenerate the Seaborn figures;
+4. rebuild the summary files;
+5. verify that expected outputs exist;
+6. publish the generated files as a workflow artifact.
 
-1. executes the ETL pipeline;
-2. rebuilds the analytical marts;
-3. regenerates the Seaborn figures;
-4. rebuilds the original summary outputs;
-5. verifies expected files;
-6. publishes the generated CSV and SVG outputs as a workflow artifact.
-
-This is important because the repository is designed to demonstrate more than a notebook that happened to run once.
+That gives me a quick check that the repository still works as one system after a code change.
 
 ---
 
@@ -192,21 +193,15 @@ This is important because the repository is designed to demonstrate more than a 
 ├── .github/workflows/
 │   └── tests.yml
 ├── data/
-│   ├── raw/                         # sample SQL extract + Parquet enrichment
-│   ├── processed/                   # trusted curated outputs
-│   └── marts/                       # analytical data products
+│   ├── raw/
+│   ├── processed/
+│   └── marts/
 ├── docs/
 │   ├── architecture.md
 │   └── data_contract.md
 ├── notebooks/
 │   └── grocery_sales_pipeline.ipynb
 ├── reports/
-│   ├── engineering_analytics_overview.svg
-│   ├── monthly_sales_story.svg
-│   ├── top_departments.svg
-│   ├── department_sales_concentration.svg
-│   ├── holiday_uplift_by_department.svg
-│   └── department_month_heatmap.svg
 ├── scripts/
 │   ├── run_pipeline.py
 │   ├── build_analytics_marts.py
@@ -222,7 +217,7 @@ This is important because the repository is designed to demonstrate more than a 
     └── test_analytics.py
 ```
 
-## Run everything locally
+## Run it locally
 
 ```bash
 python -m venv .venv
@@ -240,34 +235,20 @@ python scripts/analyze_outputs.py
 pytest -q
 ```
 
-To rerun the pipeline with another threshold:
+To change the threshold:
 
 ```bash
 python scripts/run_pipeline.py --min-weekly-sales 15000
 ```
 
-## Engineering decisions
+## If I were taking this further
 
-**Why validate join cardinality?**  
-Many-to-many joins can inflate row counts and financial measures while still producing a technically valid dataframe. I prefer to fail immediately when a source violates the expected key contract.
+The next useful changes would be engineering changes rather than more charts:
 
-**Why separate the pipeline and analytics modules?**  
-The ETL layer should define trusted data. The analytical layer should consume it. Keeping them separate prevents a charting notebook from becoming an undocumented second transformation pipeline.
-
-**Why create marts instead of charting directly from `clean_data.csv`?**  
-The marts make the analytical grain explicit and reusable. A department-month heatmap and a holiday comparison have different grains, so each gets a small purpose-built table.
-
-**Why CSV for this portfolio?**  
-It keeps the repository easy to inspect. For a larger platform I would publish partitioned Parquet or Delta tables and expose them through a governed lakehouse / warehouse serving layer.
-
-## What I would productionize next
-
-The next step would be to move from a batch portfolio workflow toward a real platform:
-
-1. ingest a complete source extract incrementally;
+1. load a complete source extract incrementally;
 2. preserve source dates and `Year-Month` for partitioned processing;
 3. write curated and mart layers as Parquet or Delta;
 4. add row-count reconciliation, freshness and schema-drift monitoring;
 5. persist pipeline-run metadata and quality results;
-6. orchestrate with Azure Data Factory, Fabric Data Factory or Airflow;
-7. add idempotent incremental loads and a lakehouse / warehouse serving layer.
+6. orchestrate the workflow with Azure Data Factory, Fabric Data Factory or Airflow;
+7. make the loads idempotent and expose the output through a lakehouse or warehouse layer.
