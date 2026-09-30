@@ -2,7 +2,7 @@
 
 [![Data pipeline CI](https://github.com/Danish-Mallick/walmart-ecommerce-sales-pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/Danish-Mallick/walmart-ecommerce-sales-pipeline/actions/workflows/tests.yml)
 
-![Engineering and analytics overview](reports/engineering_analytics_overview.svg)
+![Walmart Retail Sales: Building a Reliable Data Pipeline for Analysis](reports/walmart_retail_sales_data_pipeline.png)
 
 I built this project around a simple requirement: take weekly retail sales data from two different sources, turn it into a reliable analytical dataset, and make sure the same process can be rerun without depending on a notebook.
 
