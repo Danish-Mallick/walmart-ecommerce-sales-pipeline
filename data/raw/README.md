@@ -1,12 +1,9 @@
-# Data provenance
+# Source data note
 
-The Parquet file is the complementary dataset supplied with the DataCamp
-assignment. The notebook's SQL output was exported into
-`grocery_sales_sample.csv` so the repository can be run without a PostgreSQL
-connection.
+This repository does not claim ownership of the underlying Walmart retail dataset.
 
-The original course SQL query is preserved in `sql/grocery_sales.sql`. In the
-DataCamp workspace it returns the complete `grocery_sales` table. The local CSV
-is the row sample preserved in the uploaded notebook export, so the local run
-is reproducible but should not be presented as a complete Walmart production
-dataset. Replace it with a full SQL export when performing a full-scale study.
+The local project contains a **20,000-row sales extract** plus a complementary Parquet dataset so the pipeline can be executed without external database credentials. The full source extract is not included here.
+
+The SQL used to retrieve the sales table is preserved in `sql/grocery_sales.sql`.
+
+The pipeline, validation rules, analytical marts, tests, CI workflow and visual analysis in this repository operate on those supplied source files.
