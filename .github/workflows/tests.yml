@@ -1,11 +1,11 @@
-name: tests
+name: data-pipeline-ci
 
 on:
   push:
   pull_request:
 
 jobs:
-  test:
+  unit-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,4 +14,33 @@ jobs:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
       - run: pip install -r requirements.txt
-      - run: pytest -q
+      - name: Compile Python sources
+        run: python -m compileall src scripts
+      - name: Run unit and integration tests
+        run: pytest -q
+
+  pipeline-smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -r requirements.txt
+      - name: Execute ETL pipeline
+        run: python scripts/run_pipeline.py
+      - name: Build analytical outputs
+        run: python scripts/analyze_outputs.py
+      - name: Verify expected outputs
+        run: |
+          test -f data/processed/clean_data.csv
+          test -f data/processed/agg_data.csv
+          test -f reports/data_quality_report.csv
+          test -f reports/analysis_summary.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-outputs
+          path: |
+            data/processed/*.csv
+            reports/*.csv
