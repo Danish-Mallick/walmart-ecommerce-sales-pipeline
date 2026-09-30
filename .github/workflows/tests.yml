@@ -30,17 +30,27 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Execute ETL pipeline
         run: python scripts/run_pipeline.py
-      - name: Build analytical outputs
+      - name: Build analytical marts
+        run: python scripts/build_analytics_marts.py
+      - name: Build analytical figures
+        run: python scripts/plot_analytics.py
+      - name: Build legacy summary outputs
         run: python scripts/analyze_outputs.py
       - name: Verify expected outputs
         run: |
           test -f data/processed/clean_data.csv
           test -f data/processed/agg_data.csv
+          test -f data/marts/month_department_sales.csv
+          test -f data/marts/department_holiday_sales.csv
+          test -f data/marts/department_sales_summary.csv
+          test -f reports/monthly_sales_story.svg
+          test -f reports/department_month_heatmap.svg
           test -f reports/data_quality_report.csv
-          test -f reports/analysis_summary.csv
       - uses: actions/upload-artifact@v4
         with:
-          name: pipeline-outputs
+          name: pipeline-and-analytics-outputs
           path: |
             data/processed/*.csv
+            data/marts/*.csv
             reports/*.csv
+            reports/*.svg

@@ -1,14 +1,16 @@
-# Walmart Retail Sales ETL & Analytics Pipeline
+# Walmart Retail Sales Data Pipeline & Analytics
 
 [![Data pipeline CI](https://github.com/Danish-Mallick/walmart-ecommerce-sales-pipeline/actions/workflows/tests.yml/badge.svg)](https://github.com/Danish-Mallick/walmart-ecommerce-sales-pipeline/actions/workflows/tests.yml)
 
-**Python · pandas · SQL · Parquet · Pytest · GitHub Actions**
+![Engineering and analytics overview](reports/engineering_analytics_overview.svg)
 
-I started this as a DataCamp transformation exercise, then rebuilt it as a small **data-engineering pipeline** that I could run, test and validate outside the course environment.
+**Python · pandas · SQL · Parquet · Pytest · GitHub Actions · Seaborn**
 
-The business output is simple—cleaned weekly retail sales and a monthly aggregate—but the part I wanted to demonstrate is the engineering around it: **source contracts, one-to-one joins, deterministic transformations, data-quality gates, reusable modules, automated tests and CI smoke runs**.
+I started this as a DataCamp transformation exercise, then rebuilt it as a small **data-engineering project with a downstream analytics layer**.
 
-The repository uses a **20,000-row local sample** preserved from the DataCamp SQL output. I do not present the sample as a complete Walmart enterprise dataset.
+The first goal was not to make charts. It was to create a pipeline I could trust: validate the input structure, prevent bad joins, apply deterministic transformations, enforce a curated schema, write repeatable outputs, and rerun everything in CI. Once that layer was stable, I used the curated data to build analytical marts and answer a second set of questions about seasonality, department contribution and holiday behaviour.
+
+The repository uses a **20,000-row local sample** preserved from the DataCamp SQL output. The results below describe that sample after the assignment's default `Weekly_Sales > 10,000` filter; they are not presented as full Walmart enterprise results.
 
 ## Architecture
 
@@ -16,131 +18,211 @@ The repository uses a **20,000-row local sample** preserved from the DataCamp SQ
 flowchart LR
     A[(SQL sales extract)] --> C[Extract]
     B[(Parquet enrichment)] --> C
-    C --> D[One-to-one merge]
+    C --> D[1:1 merge]
     D --> E[Transform]
     E --> Q{Quality gates}
-    Q --> F[(clean_data.csv)]
-    Q --> G[Monthly aggregation]
-    G --> H[(agg_data.csv)]
-    F --> I[Analysis / reports]
-    H --> I
+    Q --> F[(Curated data)]
+    F --> G[Monthly aggregate]
+    F --> M[Analytics marts]
+    M --> V[Seaborn analysis]
+    G --> V
     CI[GitHub Actions] -. tests + smoke run .-> Q
 ```
 
-The notebook is a presentation layer. The actual pipeline logic lives in [`src/pipeline.py`](src/pipeline.py), so the same functions can be called from the command line, tests or a future orchestrator.
+The notebook is a presentation layer. The ETL logic lives in [`src/pipeline.py`](src/pipeline.py), while downstream analytical transformations live in [`src/analytics.py`](src/analytics.py). This separation keeps the raw-to-curated pipeline independent from the questions asked later.
 
 [Detailed architecture](docs/architecture.md) · [Data contract and quality rules](docs/data_contract.md)
 
-## What I engineered
+---
 
-### 1. Extract with cardinality checks
+## 1. Building the trusted data layer
 
-The sales extract and Parquet enrichment data are joined on `index`.
+### Extract and join validation
 
-I use a **one-to-one merge contract** instead of a normal unchecked merge. Duplicate keys on either side cause the run to fail. That prevents a common data-engineering failure mode: silently multiplying sales rows during enrichment.
+The sales extract and the Parquet enrichment file are joined on `index`. Both inputs must have unique keys.
 
-### 2. Deterministic transformation
+I use a **one-to-one merge contract** rather than an unchecked merge. If either side contains duplicate join keys, the pipeline fails instead of silently multiplying rows and overstating sales.
 
-The transformation is implemented as reusable Python functions:
+### Transformation
 
-- validates required source columns;
-- fills numeric gaps with column medians;
+The pipeline then:
+
+- checks required source columns;
+- fills numeric gaps with deterministic median values;
 - parses dates and removes invalid timestamps;
 - derives calendar month;
-- applies a configurable `Weekly_Sales` threshold (default: **10,000**);
-- projects an explicit seven-column curated schema.
+- applies a configurable weekly-sales threshold;
+- publishes an explicit seven-column curated schema.
 
-The default threshold reproduces the original assignment, but the command-line option makes the pipeline reusable without changing code.
+The default threshold is **10,000**, matching the original assignment, but it can be changed from the command line without editing source code.
 
-### 3. Explicit data-quality gates
+### Quality gates
 
-Before data is published, the curated dataframe is checked for:
+Before data is published, the curated dataframe must:
 
-- exact schema;
-- missing values;
-- valid month values;
-- compliance with the configured sales threshold.
+- match the expected schema exactly;
+- contain no missing values;
+- contain valid calendar months;
+- contain no rows below the configured threshold.
 
-The pipeline fails fast rather than allowing invalid rows into downstream outputs.
+These checks turn data-quality problems into visible pipeline failures.
 
-### 4. Curated and aggregate data products
+### Data products
 
-The pipeline writes two index-free CSV outputs:
-
-| Data product | Grain | Purpose |
+| Product | Grain | Purpose |
 |---|---|---|
-| [`clean_data.csv`](data/processed/clean_data.csv) | qualifying store / department / week rows | curated input for analysis |
-| [`agg_data.csv`](data/processed/agg_data.csv) | calendar month | average qualifying weekly sales |
+| [`clean_data.csv`](data/processed/clean_data.csv) | store / department / observation | trusted curated input |
+| [`agg_data.csv`](data/processed/agg_data.csv) | calendar month | monthly assignment output |
+| [`month_department_sales.csv`](data/marts/month_department_sales.csv) | department × month | seasonal analytics mart |
+| [`department_holiday_sales.csv`](data/marts/department_holiday_sales.csv) | department | holiday comparison mart |
+| [`department_sales_summary.csv`](data/marts/department_sales_summary.csv) | department | contribution / concentration mart |
 
-Analysis scripts consume these outputs instead of duplicating the transformation logic.
+The marts are built **from the curated output**, not from the raw files. That is intentional: downstream analysis should consume a trusted data product rather than recreate cleaning logic independently.
 
-### 5. Automated testing and CI
+---
 
-The test suite covers transformation logic **and pipeline behaviour**, including:
+# What I did after the pipeline was built
+
+Once the engineering layer was stable, I treated the curated dataset like a small analytical source and asked a series of business questions.
+
+## 2. When are qualifying weekly sales strongest?
+
+![Monthly qualifying sales](reports/monthly_sales_story.svg)
+
+Most months in the sample sit around a **$39k–$42k** average for qualifying weekly sales. The strongest values appear near the end of the year:
+
+- **November:** $43,455 average qualifying weekly sales
+- **December:** $44,837, the highest monthly average in the sample
+- **October:** $39,286
+
+The result is descriptive and uses only rows that survive the `> 10,000` filter. I therefore interpret it as a pattern within the curated sample, not as a complete monthly Walmart sales trend.
+
+## 3. Which departments contribute the most qualifying sales?
+
+![Top departments](reports/top_departments.svg)
+
+Department-level analysis shows that the sales distribution is not even.
+
+**Departments 92 and 95 are the two largest contributors in this sample.** Department 92 records approximately **$41.6M** in qualifying sales and Department 95 approximately **$36.8M**.
+
+Looking beyond the top two, the **top 10 departments account for 52.9%** of qualifying sales. That concentration is useful because it shows that aggregate monthly movement can be influenced heavily by a relatively small set of departments.
+
+## 4. How concentrated is the department mix?
+
+![Department sales concentration](reports/department_sales_concentration.svg)
+
+The concentration view adds another perspective:
+
+- the **top 5 departments contribute 32.8%** of qualifying sales;
+- the **top 10 contribute 52.9%**.
+
+That made me cautious about treating the monthly trend as if every department moved in the same way. A stronger next question was whether different departments behaved differently around holiday periods.
+
+## 5. Is the overall holiday difference spread evenly across departments?
+
+The sample-level comparison shows:
+
+| Period | Average qualifying weekly sales |
+|---|---:|
+| Regular week | $40,678 |
+| Holiday week | $42,929 |
+| Difference | **+5.5%** |
+
+That does **not** mean holidays caused a 5.5% increase. The dataset is filtered, the holiday flag is observational, and departments differ in their mix.
+
+So I looked one level deeper.
+
+![Holiday uplift by department](reports/holiday_uplift_by_department.svg)
+
+Among departments with at least five holiday observations and twenty regular observations, the pattern varies substantially.
+
+**Department 72 shows the largest positive difference at +90.9%, while Department 16 is 49.6% lower during holiday weeks.**
+
+The important finding is not the extreme percentages by themselves. It is that the overall +5.5% average hides very different departmental behaviour.
+
+## 6. Where do department-level seasonal patterns appear?
+
+![Department month heatmap](reports/department_month_heatmap.svg)
+
+I then built a department × month mart and visualized the twelve highest-sales departments as a heatmap.
+
+The result confirms that **seasonality is not uniform across departments**. Some high-value departments strengthen late in the year, while others peak at different points.
+
+That means a single monthly company-level trend is useful for orientation, but it is not sufficient for explaining *which parts of the business* are producing the change.
+
+---
+
+## CI and reproducibility
+
+GitHub Actions runs two independent jobs:
+
+### Unit and integration tests
+
+The test suite checks:
 
 - one-to-one joins;
 - duplicate-key rejection;
 - schema enforcement;
 - numeric imputation;
 - invalid-date handling;
-- configurable filtering;
+- configurable sales thresholds;
 - output writing;
-- end-to-end pipeline execution.
+- end-to-end pipeline execution;
+- analytics-mart grain and calculations.
 
-GitHub Actions runs the tests and a second **pipeline smoke-test job**. The smoke test executes the ETL workflow, rebuilds the analytical outputs, verifies expected files and publishes the generated CSVs as a workflow artifact.
+### Pipeline smoke test
 
-That CI layer is important because a pipeline that only works inside one notebook is not very convincing.
+The second job:
 
-## Pipeline results on the included sample
+1. executes the ETL pipeline;
+2. rebuilds the analytical marts;
+3. regenerates the Seaborn figures;
+4. rebuilds the original summary outputs;
+5. verifies expected files;
+6. publishes the generated CSV and SVG outputs as a workflow artifact.
 
-After applying the default `Weekly_Sales > 10,000` rule:
+This is important because the repository is designed to demonstrate more than a notebook that happened to run once.
 
-| Measure | Result |
-|---|---:|
-| Rows in curated output | **10,946** |
-| Stores represented | **2** |
-| Departments represented | **62** |
-| Highest monthly average | **December** |
-| December average qualifying weekly sales | **$44,837.10** |
-| Holiday-week average | **$42,929.42** |
-| Regular-week average | **$40,678.45** |
-| Observed holiday difference | **+5.5%** |
+---
 
-These figures are descriptive results from the local sample. The 5.5% difference is **not** a causal estimate of a holiday effect, and the `> 10,000` filter means it should not be interpreted as an all-Walmart sales statistic.
-
-![Average qualifying weekly sales by calendar month](reports/monthly_sales_trend.png)
-
-![Holiday and regular-week comparison](reports/holiday_sales_comparison.png)
-
-![Top stores by average qualifying weekly sales](reports/top_store_sales.png)
-
-## Repository layout
+## Repository structure
 
 ```text
 .
 ├── .github/workflows/
-│   └── tests.yml                 # tests + end-to-end pipeline smoke run
+│   └── tests.yml
 ├── data/
-│   ├── raw/                      # source sample + Parquet enrichment
-│   └── processed/                # curated and aggregate data products
+│   ├── raw/                         # sample SQL extract + Parquet enrichment
+│   ├── processed/                   # trusted curated outputs
+│   └── marts/                       # analytical data products
 ├── docs/
-│   ├── architecture.md           # pipeline design and layer responsibilities
-│   └── data_contract.md          # schemas, quality rules and failure behaviour
+│   ├── architecture.md
+│   └── data_contract.md
 ├── notebooks/
 │   └── grocery_sales_pipeline.ipynb
-├── reports/                      # quality outputs, summary tables and charts
+├── reports/
+│   ├── engineering_analytics_overview.svg
+│   ├── monthly_sales_story.svg
+│   ├── top_departments.svg
+│   ├── department_sales_concentration.svg
+│   ├── holiday_uplift_by_department.svg
+│   └── department_month_heatmap.svg
 ├── scripts/
-│   ├── run_pipeline.py           # CLI entry point
-│   └── analyze_outputs.py        # downstream analysis only
+│   ├── run_pipeline.py
+│   ├── build_analytics_marts.py
+│   ├── plot_analytics.py
+│   └── analyze_outputs.py
 ├── sql/
-│   └── grocery_sales.sql         # original PostgreSQL source query
+│   └── grocery_sales.sql
 ├── src/
-│   └── pipeline.py               # reusable ETL + validation logic
+│   ├── pipeline.py
+│   └── analytics.py
 └── tests/
-    └── test_pipeline.py
+    ├── test_pipeline.py
+    └── test_analytics.py
 ```
 
-## Run the pipeline
+## Run everything locally
 
 ```bash
 python -m venv .venv
@@ -149,18 +231,22 @@ python -m venv .venv
 .venv\Scripts\Activate.ps1
 
 pip install -r requirements.txt
+
 python scripts/run_pipeline.py
+python scripts/build_analytics_marts.py
+python scripts/plot_analytics.py
 python scripts/analyze_outputs.py
+
 pytest -q
 ```
 
-To change the sales threshold without editing the source:
+To rerun the pipeline with another threshold:
 
 ```bash
 python scripts/run_pipeline.py --min-weekly-sales 15000
 ```
 
-## Data lineage and reproducibility
+## Data lineage
 
 In the DataCamp workspace, the source query is:
 
@@ -169,47 +255,48 @@ SELECT *
 FROM grocery_sales;
 ```
 
-The query is preserved in [`sql/grocery_sales.sql`](sql/grocery_sales.sql). DataCamp exposes the complete result as a dataframe, but the exported notebook retained only a **20,000-row display sample**. That sample is stored as `grocery_sales_sample.csv` so the repository remains runnable without database credentials.
+The complete DataCamp result is not stored here. The exported notebook retained a **20,000-row display sample**, saved as `grocery_sales_sample.csv` so the project remains reproducible without database credentials.
 
-The complementary Parquet file contains holiday, weather, fuel, markdown, CPI, unemployment and store attributes. The current curated contract intentionally publishes only:
+The Parquet enrichment source contains holiday, economic and store attributes. The current curated contract publishes:
 
-`Store_ID`, `Month`, `Dept`, `IsHoliday`, `Weekly_Sales`, `CPI`, `Unemployment`.
+`Store_ID`, `Month`, `Dept`, `IsHoliday`, `Weekly_Sales`, `CPI` and `Unemployment`.
 
-Replacing the sample with the full SQL export does not require changing the pipeline code.
+Replacing the local sample with the complete SQL export does not require rewriting the ETL logic.
 
 ## Engineering decisions
 
-**Why median imputation?**  
-The assignment requires numeric gaps to be filled. Median imputation is deterministic and less sensitive to extreme values than the mean. In a production system I would make the policy column-specific and monitor the imputation rate.
+**Why validate join cardinality?**  
+Many-to-many joins can inflate row counts and financial measures while still producing a technically valid dataframe. I prefer to fail immediately when a source violates the expected key contract.
 
-**Why fail on duplicate join keys?**  
-A many-to-many merge can inflate row counts and sales without an obvious runtime error. The explicit cardinality check converts that silent data-quality problem into a visible pipeline failure.
+**Why separate the pipeline and analytics modules?**  
+The ETL layer should define trusted data. The analytical layer should consume it. Keeping them separate prevents a charting notebook from becoming an undocumented second transformation pipeline.
 
-**Why keep logic outside the notebook?**  
-The notebook communicates the workflow. `src/pipeline.py` owns the transformation logic, which prevents the notebook, CLI and tests from drifting into different implementations.
+**Why create marts instead of charting directly from `clean_data.csv`?**  
+The marts make the analytical grain explicit and reusable. A department-month heatmap and a holiday comparison have different grains, so each gets a small purpose-built table.
 
-**Why CSV outputs?**  
-CSV keeps this portfolio project easy to inspect. For larger volumes I would publish partitioned Parquet/Delta tables and register them in a governed catalog rather than use CSV as the serving format.
+**Why CSV for this portfolio?**  
+It keeps the repository easy to inspect. For a larger platform I would publish partitioned Parquet or Delta tables and expose them through a governed lakehouse / warehouse serving layer.
 
-## What I would build next
+## What I would productionize next
 
-The next engineering step is not to add more charts. I would move this design toward a scheduled incremental pipeline:
+The next step would be to move from a batch portfolio workflow toward a real platform:
 
-1. ingest a complete source extract rather than the notebook sample;
-2. preserve `Year-Month` and source dates for partitioned time-series processing;
-3. write curated data as Parquet or Delta rather than CSV;
-4. add row-count reconciliation and freshness metrics;
+1. ingest a complete source extract incrementally;
+2. preserve source dates and `Year-Month` for partitioned processing;
+3. write curated and mart layers as Parquet or Delta;
+4. add row-count reconciliation, freshness and schema-drift monitoring;
 5. persist pipeline-run metadata and quality results;
-6. orchestrate the workflow in Azure Data Factory, Fabric Data Factory or Airflow;
-7. add idempotent incremental loading and a warehouse/lakehouse serving layer.
-
-Those changes would be appropriate for a real data platform; I kept this repository deliberately small enough for a reviewer to understand the complete pipeline.
+6. orchestrate with Azure Data Factory, Fabric Data Factory or Airflow;
+7. add idempotent incremental loads and a lakehouse / warehouse serving layer.
 
 ## Skills demonstrated
 
-**Data engineering:** ETL design · schema contracts · data validation · data lineage · join cardinality · data-quality checks · reproducible pipelines  
+**Data engineering:** ETL design · source contracts · schema validation · join cardinality · data quality · analytical marts · data lineage · CI/CD · reproducibility
+
+**Analytics:** dimensional aggregation · department contribution · holiday comparison · seasonality analysis · Seaborn visualization
+
 **Technology:** Python · pandas · PostgreSQL · Parquet · Pytest · GitHub Actions · Jupyter · Seaborn · Matplotlib
 
 ## Attribution
 
-The starting exercise and supplied retail data come from DataCamp. The modular pipeline, validations, tests, CI workflow, documentation, local reproducibility layer and analytical outputs were developed for this portfolio repository.
+The starting exercise and supplied retail data come from DataCamp. The modular pipeline, quality checks, analytical marts, tests, CI workflow, documentation and analytical layer were developed for this portfolio repository.

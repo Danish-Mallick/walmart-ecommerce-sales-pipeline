@@ -1,83 +1,69 @@
 # Pipeline architecture
 
-This repository is intentionally small, but the workflow is structured like a production data pipeline: source contracts are checked early, transformation logic is kept outside the notebook, curated outputs are validated before publication, and CI reruns both tests and the pipeline.
+The repository separates ingestion and transformation from downstream analytics.
 
 ```mermaid
 flowchart LR
-    SQL[(PostgreSQL / DataCamp sales extract)]
-    PQ[(Parquet enrichment data)]
-    EX[Extract + one-to-one join]
+    SQL[(SQL sales extract)]
+    PQ[(Parquet enrichment)]
+    EX[Extract + 1:1 join]
     TR[Transform]
     Q{Quality gates}
-    CLEAN[(clean_data.csv)]
-    AGG[Monthly aggregation]
-    GOLD[(agg_data.csv)]
-    REP[Analysis + reports]
-    CI[GitHub Actions CI]
+    CUR[(Curated data)]
+    AGG[(Monthly aggregate)]
+    M1[(Department-month mart)]
+    M2[(Department-holiday mart)]
+    M3[(Department summary mart)]
+    VIS[Seaborn analytics]
+    CI[GitHub Actions]
 
     SQL --> EX
     PQ --> EX
     EX --> TR
     TR --> Q
-    Q --> CLEAN
-    Q --> AGG
-    AGG --> GOLD
-    CLEAN --> REP
-    GOLD --> REP
-    CI -. tests .-> EX
-    CI -. smoke run .-> REP
+    Q --> CUR
+    CUR --> AGG
+    CUR --> M1
+    CUR --> M2
+    CUR --> M3
+    AGG --> VIS
+    M1 --> VIS
+    M2 --> VIS
+    M3 --> VIS
+    CI -. tests .-> Q
+    CI -. smoke run .-> VIS
 ```
 
-## Layer responsibilities
+## Source layer
 
-### Source layer
+The local source layer contains a sample of the DataCamp SQL result and the complementary Parquet dataset.
 
-- **Sales extract:** the SQL result exported from the DataCamp workspace.
-- **Enrichment layer:** Parquet data containing holiday, economic and store attributes.
-- The join key is `index`. Both sides are required to be unique before the merge.
+The `index` key is expected to be unique on both sides of the merge. Violations cause the pipeline to fail.
 
-### Transformation layer
+## Curated layer
 
-`src/pipeline.py` owns the business logic. The notebook does not contain a separate version of the pipeline.
+`src/pipeline.py` owns the raw-to-curated business logic. It validates source columns, performs the one-to-one merge, imputes numeric gaps, parses dates, derives month, applies the configurable sales threshold and enforces the final schema.
 
-The transformation:
+The main curated output is `data/processed/clean_data.csv`.
 
-1. validates required source columns;
-2. performs a one-to-one merge;
-3. fills numeric gaps with deterministic median values;
-4. parses dates and removes invalid timestamps;
-5. derives calendar month;
-6. applies the configurable weekly-sales threshold;
-7. projects the curated seven-column schema.
+## Mart layer
 
-### Quality gates
+`src/analytics.py` builds three downstream data products from the curated dataset:
 
-The curated dataframe must:
+- `month_department_sales.csv` — department × month grain;
+- `department_holiday_sales.csv` — department grain with regular / holiday comparison;
+- `department_sales_summary.csv` — department contribution and cumulative share.
 
-- contain the exact expected columns;
-- contain no missing values;
-- contain months between 1 and 12;
-- contain only rows above the configured sales threshold.
+The analysis does not bypass the curated layer to read raw data directly.
 
-The pipeline fails fast when these rules are violated.
+## Presentation layer
 
-### Serving layer
+`scripts/plot_analytics.py` uses Seaborn / Matplotlib to create the analytical figures from those marts.
 
-Two CSV products are written:
+This makes the dependency chain visible:
 
-- `clean_data.csv`: row-level curated records for downstream analysis.
-- `agg_data.csv`: monthly average qualifying weekly sales.
+**source → curated data → marts → analysis**
 
-Analytical scripts read these outputs rather than rebuilding the transformation independently.
+## CI layer
 
-### CI layer
-
-GitHub Actions runs:
-
-- Python compilation;
-- unit and integration tests;
-- a full pipeline smoke test using the repository sample;
-- report generation;
-- artifact publication for the generated CSV outputs.
-
-This keeps the repository demonstrably reproducible without claiming that the sample is a production Walmart feed.
+GitHub Actions runs both the test suite and a full pipeline smoke test. The smoke job rebuilds the curated data, marts, analytical figures and summary files, checks that expected outputs exist, and publishes the generated files as an artifact.

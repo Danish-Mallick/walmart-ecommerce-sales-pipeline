@@ -1,61 +1,81 @@
 # Data contract and quality rules
 
-The local repository uses a sample of the DataCamp sales query plus the complementary Parquet file. This document makes the expected inputs and outputs explicit.
+The repository uses a local sample of the DataCamp sales query plus the complementary Parquet file.
 
-## Sales input
+## Source contract
 
-Required columns:
-
-| Column | Purpose |
-|---|---|
-| `index` | Join key; must be unique |
-| `Store_ID` | Store identifier |
-| `Date` | Weekly observation date |
-| `Dept` | Department identifier |
-| `Weekly_Sales` | Weekly sales value |
-
-## Enrichment input
-
-The Parquet dataset must contain a unique `index` plus the fields required by the curated output:
-
-- `IsHoliday`
-- `CPI`
-- `Unemployment`
-
-The source also contains fields such as temperature, fuel price, markdown values, store type and store size. They remain available in the merged intermediate dataframe but are not part of the current curated contract.
-
-## Curated output
-
-`clean_data.csv` contains exactly:
+### Sales input
 
 | Column | Rule |
 |---|---|
+| `index` | unique join key |
 | `Store_ID` | required |
-| `Month` | integer from 1 to 12 |
+| `Date` | parseable date where possible |
 | `Dept` | required |
-| `IsHoliday` | required |
-| `Weekly_Sales` | strictly above the configured threshold |
-| `CPI` | non-null after numeric imputation |
-| `Unemployment` | non-null after numeric imputation |
+| `Weekly_Sales` | required numeric measure |
 
-## Aggregate output
+### Enrichment input
 
-`agg_data.csv` contains:
+The Parquet source must contain a unique `index` and the fields required by the curated output, including `IsHoliday`, `CPI` and `Unemployment`.
 
+## Curated contract
+
+`clean_data.csv` contains exactly:
+
+- `Store_ID`
 - `Month`
-- average qualifying `Weekly_Sales`, rounded to two decimals.
+- `Dept`
+- `IsHoliday`
+- `Weekly_Sales`
+- `CPI`
+- `Unemployment`
+
+Quality rules:
+
+- no missing values;
+- `Month` must be from 1 through 12;
+- `Weekly_Sales` must exceed the configured threshold;
+- any unexpected schema change fails the run.
+
+## Analytical marts
+
+All marts are derived from `clean_data.csv`.
+
+### month_department_sales.csv
+
+Grain: **department × calendar month**
+
+Measures:
+
+- row count;
+- average qualifying weekly sales;
+- total qualifying sales.
+
+### department_holiday_sales.csv
+
+Grain: **department**
+
+Measures:
+
+- holiday and regular observation counts;
+- holiday and regular average qualifying weekly sales;
+- descriptive percentage difference.
+
+### department_sales_summary.csv
+
+Grain: **department**
+
+Measures:
+
+- rank;
+- row count;
+- average qualifying weekly sales;
+- total qualifying sales;
+- sales share;
+- cumulative sales share.
 
 ## Failure behaviour
 
-The pipeline raises an error when:
+The ETL layer raises errors for missing source columns, duplicate merge keys, negative thresholds, invalid curated months, missing curated values, schema drift, threshold violations or missing output files.
 
-- required source columns are missing;
-- either join input contains duplicate `index` values;
-- the configured threshold is negative;
-- the curated schema changes unexpectedly;
-- curated data contains missing values;
-- an invalid month survives transformation;
-- a row violates the sales threshold;
-- expected output files are not created.
-
-These are deliberately explicit quality gates. In a larger platform they could be implemented in a data-quality framework, but keeping them in plain Python makes the portfolio project easy to inspect and run.
+The marts depend on the curated contract rather than defining a separate cleaning path.
