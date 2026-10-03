@@ -61,7 +61,7 @@
     .hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
     .button.primary{background:linear-gradient(135deg,var(--blue),#147fd8);border-color:transparent;color:white}
     .button.accent{background:rgba(255,199,56,.08);border-color:rgba(255,199,56,.24);color:#ffe39a}
-    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
+    .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:18px}
     .card{
       border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,rgba(20,42,69,.78),rgba(8,23,40,.78));
       box-shadow:0 16px 42px rgba(0,0,0,.18);backdrop-filter:blur(10px);
@@ -121,8 +121,9 @@
     .insight h3{margin:0 0 8px;font-size:15px}
     .insight p{margin:0;color:var(--muted);font-size:13px;line-height:1.58}
     .footer{margin-top:28px;padding:18px 4px;color:#7187a0;font-size:12px;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
-    .reveal{opacity:0;transform:translateY(12px);transition:.65s ease}
-    .reveal.visible{opacity:1;transform:none}
+    .reveal{opacity:1;transform:none}
+    .hero{animation:heroIn .6s ease both}
+    @keyframes heroIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
     @media(max-width:900px){
       .hero{padding:34px}.kpis{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:repeat(4,1fr);row-gap:26px}
       .flow:before{display:none}.grid2{grid-template-columns:1fr}.insights{grid-template-columns:1fr}
@@ -223,11 +224,6 @@
   </main>
 
   <script>
-    const io = new IntersectionObserver(entries => entries.forEach(e => {
-      if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); }
-    }), {threshold:.12});
-    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
-
     const counters = document.querySelectorAll('[data-count]');
     const counterIO = new IntersectionObserver(entries => entries.forEach(entry => {
       if(!entry.isIntersecting) return;
@@ -239,7 +235,7 @@
         const p = Math.min((now-start)/duration,1);
         const eased = 1-Math.pow(1-p,3);
         const value = target*eased;
-        el.textContent = value.toLocaleString(undefined,{minimumFractionDigits:decimals,maximumFractionDigits:decimals});
+        el.textContent = value.toLocaleString('en-US',{minimumFractionDigits:decimals,maximumFractionDigits:decimals});
         if(p<1) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick); counterIO.unobserve(el);
