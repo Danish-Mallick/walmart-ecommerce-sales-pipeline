@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Interactive showcase for the Walmart Retail Sales Data Pipeline & Analytics portfolio project." />
+  <title>Walmart Retail Sales | Data Pipeline & Analytics</title>
+  <style>
+    :root{
+      --bg:#07111f; --bg2:#0b1a2d; --panel:rgba(17,34,57,.72); --panel2:rgba(11,27,47,.88);
+      --text:#f4f8ff; --muted:#9cb0c9; --line:rgba(255,255,255,.09);
+      --blue:#2ea6ff; --blue2:#6fd2ff; --yellow:#ffc738; --green:#41d6a3; --red:#ff7b7b;
+      --shadow:0 24px 70px rgba(0,0,0,.35);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{
+      margin:0; min-height:100vh; color:var(--text);
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:
+        radial-gradient(circle at 18% 18%, rgba(46,166,255,.16), transparent 28rem),
+        radial-gradient(circle at 86% 8%, rgba(255,199,56,.09), transparent 24rem),
+        linear-gradient(145deg,var(--bg),#081727 46%,#06101c);
+      overflow-x:hidden;
+    }
+    body:before{
+      content:""; position:fixed; inset:0; pointer-events:none; opacity:.25;
+      background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px);
+      background-size:34px 34px; mask-image:linear-gradient(to bottom,black,transparent 85%);
+    }
+    a{color:inherit;text-decoration:none}
+    .shell{width:min(1180px,calc(100% - 32px));margin:0 auto;padding:32px 0 72px}
+    .nav{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:38px}
+    .brand{display:flex;align-items:center;gap:12px;font-weight:800;letter-spacing:.01em}
+    .mark{
+      width:42px;height:42px;border-radius:13px;display:grid;place-items:center;
+      background:linear-gradient(145deg,var(--blue),#1674d2);box-shadow:0 10px 30px rgba(46,166,255,.28);
+      font-size:21px;
+    }
+    .navlinks{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    .chip,.button{
+      border:1px solid var(--line);background:rgba(255,255,255,.045);backdrop-filter:blur(12px);
+      padding:10px 14px;border-radius:999px;font-size:13px;font-weight:700;color:#dce9f8;
+      transition:.2s ease;
+    }
+    .chip:hover,.button:hover{transform:translateY(-2px);border-color:rgba(111,210,255,.45);background:rgba(46,166,255,.09)}
+    .hero{
+      position:relative;overflow:hidden;border:1px solid var(--line);border-radius:28px;padding:48px;
+      background:linear-gradient(135deg,rgba(18,41,69,.9),rgba(8,22,39,.86));box-shadow:var(--shadow);
+    }
+    .hero:after{
+      content:""; position:absolute;width:380px;height:380px;right:-140px;top:-170px;border-radius:50%;
+      border:1px solid rgba(111,210,255,.18);box-shadow:0 0 0 70px rgba(46,166,255,.025),0 0 0 140px rgba(46,166,255,.018);
+    }
+    .eyebrow{display:inline-flex;gap:8px;align-items:center;font-size:12px;text-transform:uppercase;letter-spacing:.16em;color:var(--blue2);font-weight:800}
+    .pulse{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(65,214,163,.55);animation:pulse 2s infinite}
+    @keyframes pulse{70%{box-shadow:0 0 0 9px rgba(65,214,163,0)}100%{box-shadow:0 0 0 0 rgba(65,214,163,0)}}
+    h1{font-size:clamp(42px,7vw,82px);line-height:.95;margin:18px 0 20px;letter-spacing:-.055em;max-width:880px}
+    h1 span{display:block;color:transparent;background:linear-gradient(90deg,#fff 0%,var(--blue2) 56%,var(--yellow));background-clip:text;-webkit-background-clip:text}
+    .lead{font-size:clamp(16px,2.2vw,20px);line-height:1.65;color:var(--muted);max-width:780px;margin:0}
+    .hero-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:28px}
+    .button.primary{background:linear-gradient(135deg,var(--blue),#147fd8);border-color:transparent;color:white}
+    .button.accent{background:rgba(255,199,56,.08);border-color:rgba(255,199,56,.24);color:#ffe39a}
+    .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}
+    .card{
+      border:1px solid var(--line);border-radius:20px;background:linear-gradient(180deg,rgba(20,42,69,.78),rgba(8,23,40,.78));
+      box-shadow:0 16px 42px rgba(0,0,0,.18);backdrop-filter:blur(10px);
+    }
+    .kpi{padding:22px;position:relative;overflow:hidden}
+    .kpi:before{content:"";position:absolute;left:0;top:0;width:100%;height:2px;background:linear-gradient(90deg,var(--blue),transparent)}
+    .kpi:nth-child(2):before{background:linear-gradient(90deg,var(--yellow),transparent)}
+    .kpi:nth-child(3):before{background:linear-gradient(90deg,var(--green),transparent)}
+    .kpi:nth-child(4):before{background:linear-gradient(90deg,#b58cff,transparent)}
+    .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.12em;font-weight:750}
+    .value{font-size:34px;font-weight:850;letter-spacing:-.035em;margin:8px 0 3px}
+    .sub{font-size:12px;color:#7890aa}
+    .section{margin-top:22px}
+    .section-head{display:flex;align-items:end;justify-content:space-between;gap:24px;margin:34px 4px 14px}
+    .section-head h2{margin:0;font-size:24px;letter-spacing:-.03em}
+    .section-head p{margin:0;color:var(--muted);font-size:13px}
+    .pipeline{padding:24px;position:relative;overflow:hidden}
+    .flow{display:grid;grid-template-columns:repeat(8,1fr);gap:10px;position:relative}
+    .flow:before{
+      content:"";position:absolute;left:5%;right:5%;top:31px;height:2px;
+      background:linear-gradient(90deg,transparent,var(--blue),var(--yellow),var(--green),transparent);
+      opacity:.58;background-size:200% 100%;animation:stream 4s linear infinite;
+    }
+    @keyframes stream{to{background-position:-200% 0}}
+    .node{position:relative;text-align:center;z-index:1}
+    .node .dot{
+      width:62px;height:62px;margin:0 auto 12px;border-radius:18px;display:grid;place-items:center;
+      background:#0b1b2f;border:1px solid rgba(111,210,255,.22);box-shadow:0 8px 24px rgba(0,0,0,.26);
+      font-size:20px;transition:.22s ease;
+    }
+    .node:hover .dot{transform:translateY(-4px) scale(1.04);border-color:rgba(111,210,255,.6);box-shadow:0 12px 30px rgba(46,166,255,.17)}
+    .node b{display:block;font-size:12px;line-height:1.25}
+    .node small{display:block;color:#6f86a1;font-size:10px;margin-top:5px}
+    .grid2{display:grid;grid-template-columns:1.35fr .85fr;gap:14px}
+    .panel{padding:24px;min-height:310px}
+    .panel h3{margin:0;font-size:16px}
+    .panel-top{display:flex;align-items:start;justify-content:space-between;gap:18px;margin-bottom:16px}
+    .metric-mini{text-align:right}
+    .metric-mini b{font-size:24px;display:block}
+    .metric-mini span{font-size:11px;color:var(--muted)}
+    .chart-wrap{height:215px;position:relative}
+    .chart-wrap svg{width:100%;height:100%;overflow:visible}
+    .axis{stroke:rgba(255,255,255,.08);stroke-width:1}
+    .trend{fill:none;stroke:url(#trendGradient);stroke-width:4;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 6px 14px rgba(46,166,255,.25))}
+    .area{fill:url(#areaGradient)}
+    .months{display:flex;justify-content:space-between;color:#607893;font-size:10px;margin-top:2px}
+    .bars{display:grid;gap:12px;margin-top:24px}
+    .bar-row{display:grid;grid-template-columns:70px 1fr 58px;gap:10px;align-items:center;font-size:12px}
+    .track{height:9px;background:rgba(255,255,255,.06);border-radius:999px;overflow:hidden}
+    .fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--blue),var(--blue2));transform-origin:left;animation:grow 1.2s ease both}
+    @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+    .bar-row:nth-child(2) .fill{background:linear-gradient(90deg,var(--yellow),#ffe18b)}
+    .bar-row:nth-child(3) .fill{background:linear-gradient(90deg,var(--green),#8ce8c7)}
+    .insights{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+    .insight{padding:22px}
+    .insight .icon{font-size:22px;margin-bottom:14px}
+    .insight h3{margin:0 0 8px;font-size:15px}
+    .insight p{margin:0;color:var(--muted);font-size:13px;line-height:1.58}
+    .footer{margin-top:28px;padding:18px 4px;color:#7187a0;font-size:12px;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+    .reveal{opacity:0;transform:translateY(12px);transition:.65s ease}
+    .reveal.visible{opacity:1;transform:none}
+    @media(max-width:900px){
+      .hero{padding:34px}.kpis{grid-template-columns:repeat(2,1fr)}.flow{grid-template-columns:repeat(4,1fr);row-gap:26px}
+      .flow:before{display:none}.grid2{grid-template-columns:1fr}.insights{grid-template-columns:1fr}
+    }
+    @media(max-width:560px){
+      .shell{width:min(100% - 20px,1180px);padding-top:18px}.nav{align-items:flex-start}.navlinks .chip:not(:first-child){display:none}
+      .hero{padding:27px 22px;border-radius:22px}h1{font-size:44px}.kpis{grid-template-columns:1fr 1fr}.kpi{padding:17px}.value{font-size:27px}
+      .flow{grid-template-columns:repeat(2,1fr)}.panel{padding:19px}.section-head{align-items:start;flex-direction:column;gap:4px}
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <nav class="nav">
+      <div class="brand"><div class="mark">↗</div><div>Retail Revenue Intelligence</div></div>
+      <div class="navlinks">
+        <a class="chip" href="https://github.com/Danish-Mallick/walmart-ecommerce-sales-pipeline">GitHub Repository</a>
+        <a class="chip" href="https://github.com/Danish-Mallick/walmart-ecommerce-sales-pipeline/blob/main/docs/architecture.md">Architecture</a>
+        <a class="chip" href="https://github.com/Danish-Mallick/walmart-ecommerce-sales-pipeline/blob/main/docs/data_contract.md">Data Contract</a>
+      </div>
+    </nav>
+
+    <section class="hero reveal">
+      <div class="eyebrow"><span class="pulse"></span> Data pipeline operational · portfolio showcase</div>
+      <h1>Walmart Retail Sales <span>Data Pipeline & Analytics</span></h1>
+      <p class="lead">From SQL and Parquet source data to a validated curated layer, analytical marts, automated testing and business-ready insights — built as a reproducible data product rather than a one-off notebook.</p>
+      <div class="hero-actions">
+        <a class="button primary" href="#pipeline">Explore the pipeline ↓</a>
+        <a class="button accent" href="https://github.com/Danish-Mallick/walmart-ecommerce-sales-pipeline">View source code ↗</a>
+      </div>
+    </section>
+
+    <section class="kpis reveal" aria-label="Project KPIs">
+      <article class="card kpi"><div class="label">Local sample</div><div class="value"><span data-count="20000">0</span></div><div class="sub">rows processed locally</div></article>
+      <article class="card kpi"><div class="label">Top 10 share</div><div class="value"><span data-count="52.9" data-decimals="1">0</span>%</div><div class="sub">of qualifying sales</div></article>
+      <article class="card kpi"><div class="label">Holiday difference</div><div class="value">+<span data-count="5.5" data-decimals="1">0</span>%</div><div class="sub">sample-level average</div></article>
+      <article class="card kpi"><div class="label">December avg.</div><div class="value">$<span data-count="44837">0</span></div><div class="sub">qualifying weekly sales</div></article>
+    </section>
+
+    <div class="section-head reveal" id="pipeline"><div><h2>Raw → trusted → analytical</h2><p>A compact view of the project’s full data journey.</p></div><p>Hover the stages</p></div>
+    <section class="card pipeline reveal">
+      <div class="flow">
+        <div class="node"><div class="dot">SQL</div><b>Sales extract</b><small>source A</small></div>
+        <div class="node"><div class="dot">◆</div><b>Parquet</b><small>source B</small></div>
+        <div class="node"><div class="dot">1:1</div><b>Merge</b><small>key contract</small></div>
+        <div class="node"><div class="dot">ƒ</div><b>Transform</b><small>deterministic</small></div>
+        <div class="node"><div class="dot">✓</div><b>Quality gates</b><small>fail loudly</small></div>
+        <div class="node"><div class="dot">DB</div><b>Curated layer</b><small>trusted data</small></div>
+        <div class="node"><div class="dot">▦</div><b>Data marts</b><small>analysis grain</small></div>
+        <div class="node"><div class="dot">↗</div><b>Insights</b><small>decision layer</small></div>
+      </div>
+    </section>
+
+    <div class="section-head reveal"><div><h2>What the curated sample reveals</h2><p>Interactive-style visuals, based on the analysis already in the repository.</p></div></div>
+    <section class="grid2">
+      <article class="card panel reveal">
+        <div class="panel-top"><div><h3>Qualifying weekly sales by month</h3><div class="sub">Average sales in the filtered sample</div></div><div class="metric-mini"><b>$44.8k</b><span>December peak</span></div></div>
+        <div class="chart-wrap">
+          <svg viewBox="0 0 700 220" role="img" aria-label="Stylized monthly sales trend">
+            <defs>
+              <linearGradient id="trendGradient" x1="0" x2="1"><stop offset="0" stop-color="#2ea6ff"/><stop offset=".62" stop-color="#6fd2ff"/><stop offset="1" stop-color="#ffc738"/></linearGradient>
+              <linearGradient id="areaGradient" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2ea6ff" stop-opacity=".25"/><stop offset="1" stop-color="#2ea6ff" stop-opacity="0"/></linearGradient>
+            </defs>
+            <line class="axis" x1="10" y1="45" x2="690" y2="45"/><line class="axis" x1="10" y1="105" x2="690" y2="105"/><line class="axis" x1="10" y1="165" x2="690" y2="165"/>
+            <path class="area" d="M10,158 L72,146 L134,150 L196,132 L258,141 L320,135 L382,145 L444,127 L506,138 L568,141 L630,92 L690,62 L690,205 L10,205 Z"/>
+            <path class="trend" d="M10,158 L72,146 L134,150 L196,132 L258,141 L320,135 L382,145 L444,127 L506,138 L568,141 L630,92 L690,62"/>
+            <circle cx="690" cy="62" r="7" fill="#ffc738"/><circle cx="690" cy="62" r="15" fill="#ffc738" opacity=".12"/>
+          </svg>
+          <div class="months"><span>Jan</span><span>Mar</span><span>May</span><span>Jul</span><span>Sep</span><span>Nov</span><span>Dec</span></div>
+        </div>
+      </article>
+
+      <article class="card panel reveal">
+        <div class="panel-top"><div><h3>Revenue concentration</h3><div class="sub">Share of qualifying sales</div></div><div class="metric-mini"><b>52.9%</b><span>top 10 departments</span></div></div>
+        <div class="bars">
+          <div class="bar-row"><span>Top 5</span><div class="track"><div class="fill" style="width:32.8%"></div></div><strong>32.8%</strong></div>
+          <div class="bar-row"><span>Top 10</span><div class="track"><div class="fill" style="width:52.9%"></div></div><strong>52.9%</strong></div>
+          <div class="bar-row"><span>Dept 92</span><div class="track"><div class="fill" style="width:88%"></div></div><strong>$41.6M</strong></div>
+        </div>
+        <div style="margin-top:30px;padding:17px;border-radius:16px;background:rgba(255,255,255,.035);border:1px solid var(--line)">
+          <div class="label">Why it matters</div>
+          <p style="margin:8px 0 0;color:var(--muted);font-size:13px;line-height:1.55">A small set of departments drives a large share of the filtered sample, so aggregate trends can hide important mix effects.</p>
+        </div>
+      </article>
+    </section>
+
+    <div class="section-head reveal"><div><h2>Engineering decisions behind the visuals</h2><p>The project is built to be rerunnable and testable.</p></div></div>
+    <section class="insights">
+      <article class="card insight reveal"><div class="icon">⛓</div><h3>Validated 1:1 joins</h3><p>Duplicate keys stop the pipeline before a many-to-many merge can quietly inflate sales.</p></article>
+      <article class="card insight reveal"><div class="icon">✓</div><h3>Schema as a contract</h3><p>Required columns, null handling, valid dates and filtering rules are enforced before output is published.</p></article>
+      <article class="card insight reveal"><div class="icon">⚙</div><h3>CI + reproducibility</h3><p>Tests and a pipeline smoke run validate that transformations, marts and expected outputs continue to work together.</p></article>
+    </section>
+
+    <footer class="footer">
+      <span>Portfolio project by Danish Mallick · Data Engineering × Analytics</span>
+      <span>20,000-row local sample · figures describe the curated sample, not Walmart production data.</span>
+    </footer>
+  </main>
+
+  <script>
+    const io = new IntersectionObserver(entries => entries.forEach(e => {
+      if(e.isIntersecting){ e.target.classList.add('visible'); io.unobserve(e.target); }
+    }), {threshold:.12});
+    document.querySelectorAll('.reveal').forEach(el => io.observe(el));
+
+    const counters = document.querySelectorAll('[data-count]');
+    const counterIO = new IntersectionObserver(entries => entries.forEach(entry => {
+      if(!entry.isIntersecting) return;
+      const el = entry.target;
+      const target = Number(el.dataset.count);
+      const decimals = Number(el.dataset.decimals || 0);
+      const start = performance.now(), duration = 1100;
+      const tick = now => {
+        const p = Math.min((now-start)/duration,1);
+        const eased = 1-Math.pow(1-p,3);
+        const value = target*eased;
+        el.textContent = value.toLocaleString(undefined,{minimumFractionDigits:decimals,maximumFractionDigits:decimals});
+        if(p<1) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick); counterIO.unobserve(el);
+    }), {threshold:.5});
+    counters.forEach(el => counterIO.observe(el));
+  </script>
+</body>
+</html>
